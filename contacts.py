@@ -11,6 +11,8 @@ class Contacts(object):
     self.other_rings = {}
     self.by_ip_port = { (me.address, me.port): me }
     self.me = me
+    me.prev = me
+    me.next = me
 
   def add(self, contact):
     existing = contact in self
