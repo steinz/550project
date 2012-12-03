@@ -7,18 +7,23 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
+from keyspace import *
+from contacts import Contacts
+
 class Contact(object):
   """ Encapsulation for remote contact
   
   This class contains information on a single remote contact, and also
   provides a direct RPC API to the remote node which it represents
   """
-  def __init__(self, id, address, port, network_protocol, first_comm=0):
-    self.id = id
-    self.address = address
+  def __init__(self, ring_id=1, id=None, ip=None, port=None, network_protocol=None):
+    self.ring_id = ring_id
+    self.id = id if id else random_key()
+    self.address = ip
     self.port = port
     self.network_protocol = network_protocol
-    self.first_comm = first_comm
+    self.prev = None
+    self.next = None
       
   def __hash__(self):
     return hash(self.id)

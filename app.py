@@ -10,7 +10,7 @@ class P2PSocialStore(Node):
     self.config = config
     self.node_id = node_id
     self.node_config = config['nodes'][node_id]
-    Node.__init__(self, port=self.node_config['port'])
+    Node.__init__(self, ring_id=self.node_config['ring_id'], ip=self.node_config['ip'], port=self.node_config['port'])
     self.start()
     self.join()
 
@@ -23,7 +23,10 @@ class P2PSocialStore(Node):
     contact.test('remote node id: %s' % self.node_id)
 
     if self.node_id == '1':
-      twisted.internet.reactor.callLater(5, self.contacts[self.contacts.keys()[0]].test, 'late')
+      twisted.internet.reactor.callLater(
+        5,
+        self.contacts[(self.config['nodes']['0']['ip'], self.config['nodes']['0']['port'])].test,
+        'late')
 
   @rpcmethod
   def test(self, name):
