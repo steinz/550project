@@ -2,7 +2,7 @@
 
 from keyspace import *
 from udp_rpc import UDP_RPC, rpcmethod
-import twisted.internet.reactor
+import twisted.internet import reactor
 import twisted.internet.threads
 from contact import Contact
 from contacts import Contacts
@@ -20,6 +20,7 @@ class Node(object):
     self.next = self.me
 
   def __del__(self):
+    # TODO: Leave action
     self.udp_rpc.stopListening()
 
   def start(self):
@@ -40,9 +41,15 @@ class Node(object):
     dummy_contact = Contact(ring_id=self.ring_id, id=None, ip=ip, port=port, network_protocol=self.udp_rpc)
     dummy_contact.ping()
 
-  def this_node_owns_key(self, key):
+  @rpcmethod
+  def owns_key(self, key):
     return keyspace_compare(self.id, self.next.id, key)
 
+  def iterative_find(self, key):
+    def find_fn(self, key):
+      
+    reactor.callInThread(find_fn, self, key)
+    
   @rpcmethod
   def ping(self):
     return
