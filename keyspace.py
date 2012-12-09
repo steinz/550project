@@ -24,6 +24,10 @@ def keyspace_compare(prev, next, search):
   """
   prev = key_to_int(prev)
   next = key_to_int(next)
+
+  if prev == next:
+    return True  
+
   search = key_to_int(search)
 
   if next < prev:
@@ -46,7 +50,7 @@ def int_to_key(integer):
   shorter_hex_str = ''
   for i in range(0, len(hex_str), 2):
     shorter_hex_str += chr(int(hex_str[i:i+2], 16))
-  return ''.join(['\x00'] * (key_size_bytes / 8 - len(shorter_hex_str))) + shorter_hex_str
+  return ''.join(['\x00'] * (key_size_bytes - len(shorter_hex_str))) + shorter_hex_str
 
 def key_add_circular(k1, k2):
   return int_to_key((key_to_int(k1) + key_to_int(k2)) % keyspace_size())

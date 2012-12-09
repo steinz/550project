@@ -1,66 +1,44 @@
 #!/usr/bin/env python
-#
-# This library is free software, distributed under the terms of
-# the GNU Lesser General Public License Version 3, or any later version.
-# See the COPYING file included in this archive
-#
-# The docstrings in this module contain epytext markup; API documentation
-# may be created by processing this file with epydoc: http://epydoc.sf.net
 
 from keyspace import *
-from contacts import Contacts
+
+class NetworkError(StandardError):
+  pass
 
 class Contact(object):
-  """ Encapsulation for remote contact
-  
-  This class contains information on a single remote contact, and also
-  provides a direct RPC API to the remote node which it represents
-  """
   def __init__(self, ring_id=1, id=None, ip=None, port=None, network_protocol=None):
     self.ring_id = ring_id
     self.id = id if id else random_key()
-    self.address = ip
+    self.ip = ip
     self.port = port
     self.network_protocol = network_protocol
-    self.prev = None
-    self.next = None
       
   def __hash__(self):
-    return hash(self.id)
+    return hash((self.ring_id, self.id))
 
   def __eq__(self, other):
-    if isinstance(other, Contact):
-      return self.id == other.id
-    elif isinstance(other, str):
-      return self.id == other
-    else:
+    if not isinstance(other, Contact):
       return False
-  
-  def __ne__(self, other):
-    if isinstance(other, Contact):
-      return self.id != other.id
-    elif isinstance(other, str):
-      return self.id != other
-    else:
-      return True
+    return self.id == other.id
         
   def __str__(self):
-    return '<%s.%s object; IP address: %s, UDP port: %d>' % (self.__module__, self.__class__.__name__, self.address, self.port)
+    return '%s:%s' % (self.ip, self.port)
+
+  def to_tuple(self):
+    return (self.ring_id, self.id, self.ip, self.port)
   
-  def __getattr__(self, name):
-    """ This override allows the host node to call a method of the remote
-    node (i.e. this contact) as if it was a local function.
+  @classmethod
+  def from_tuple(cls, the_tuple, network_protocol=None):
+    return cls(ring_id=the_tuple[0], id=the_tuple[1], ip=the_tuple[2], port=the_tuple[3], network_protocol=network_protocol)
+
+  def send(self, obj):
+    if not self.network_protocol:
+      raise NetworkError('no bound network protocol object')
+
+    # embed local (id, ring_id) in every message
+    obj.id = self.network_protocol.id
+    obj.ring_id = self.network_protocol.ring_id
+
+    # send message to remote (ip, port)
+    self.network_protocol.send_obj(self.ip, self.port, obj)
     
-    For instance, if C{remoteNode} is a instance of C{Contact}, the
-    following will result in C{remoteNode}'s C{test()} method to be
-    called with argument C{123}::
-     remoteNode.test(123)
-    
-    Such a RPC method call will return a Deferred, which will callback
-    when the contact responds with the result (or an error occurs).
-    This happens via this contact's C{_networkProtocol} object (i.e. the
-    host Node's C{_protocol} object).
-    """
-    def _sendRPC(*args, **kwargs):
-        return self.network_protocol.sendRPC(self, name, args, **kwargs)
-    return _sendRPC

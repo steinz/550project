@@ -2,35 +2,31 @@
 
 import sys
 import json
-from node import Node, rpcmethod
-import twisted.internet.reactor
+from node import Node
+from keyspace import *
 
 class P2PSocialStore(Node):
   def __init__(self, config, node_id):
     self.config = config
     self.node_id = node_id
     self.node_config = config['nodes'][node_id]
-    Node.__init__(self, ring_id=self.node_config['ring_id'], ip=self.node_config['ip'], port=self.node_config['port'])
+    id = int_to_key(int(self.node_config['id'])) if self.node_config.get('id') != None else None
+    Node.__init__(self, ring_id=self.node_config['ring_id'], id=id, ip=self.node_config['ip'], port=self.node_config['port'])
+    self.join()    
     self.start()
-    self.join()
 
   def join(self):
     print 'node %s (%s:%s) joining...' % (self.node_id, self.node_config['ip'], self.node_config['port'])
-    if self.node_id == '1':
-      self.known_node(self.config['nodes']['0']['ip'], self.config['nodes']['0']['port'])
+    if self.node_id != '0':
+      Node.join(self, self.config['nodes']['0']['ip'], self.config['nodes']['0']['port'])
+
+  #def received_msg(self, contact, obj):
+  #  Node.received_msg(self, contact, obj)
+  #  print obj
 
   def new_connection(self, contact):
-    contact.test('remote node id: %s' % self.node_id)
+    print 'now connected to %s' % contact
 
-    if self.node_id == '1':
-      twisted.internet.reactor.callLater(
-        5,
-        self.contacts[(self.config['nodes']['0']['ip'], self.config['nodes']['0']['port'])].test,
-        'late')
-
-  @rpcmethod
-  def test(self, name):
-    print 'hi there! %s' % name
 
 def read_config(filename='config.json'):
   with open(filename, 'r') as f:
@@ -50,7 +46,6 @@ def run(argv):
 
   node_config = config['nodes'][node_id]
   node = P2PSocialStore(config, node_id)
-  twisted.internet.reactor.run()
   return 0
 
 if __name__ == '__main__':
