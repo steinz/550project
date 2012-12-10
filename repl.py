@@ -1,8 +1,10 @@
 import inspect
 import sys
 
+from console_format import *
+
 class QueueTask(object):
-  def __init__(self, args):
+  def __init__(self, args=''):
     self.args = args
 
   @classmethod
@@ -56,16 +58,18 @@ class REPL(object):
         all_commands = self.commands.keys()
         all_commands.sort()
         for command_str in all_commands:
-          print '%s: %s' % (command_str, self.commands[command_str].describe())
+          sys.stdout.write('%s: %s\n' % (bold(command_str), self.commands[command_str].describe()))
       else:
         # help for one command
-        print self.commands[subcommand].help()
+        sys.stdout.write('%s\n' % bold(subcommand))
+        sys.stdout.write('%s\n' % self.commands[subcommand].describe())
+        sys.stdout.write('%s\n' % self.commands[subcommand].help())
 
     elif command in self.commands:
       command_obj = self.commands[command](args)
-      self.command_queue.put(command_obj)
+      self.command_queue.put(command_obj, block=False)
     else:
-      print 'unknown command'
+      sys.stdout.write('unknown command\n')
 
   def loop(self):
     while True:
@@ -76,9 +80,9 @@ class REPL(object):
           break
         self.process_command(input_line)
       except KeyboardInterrupt as e:
-        print
+        sys.stdout.write('\n')
         break
       except EOFError as e:
-        print
+        sys.stdout.write('\n')
         break
-    print 'bye'
+    sys.stdout.write('bye\n')

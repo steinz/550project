@@ -1,5 +1,7 @@
 from keyspace import *
 from node import Node
+from multiprocessing import Queue
+from Queue import Empty
 
 class P2PSocialStore(Node):
   def __init__(self, config, node_id):
@@ -21,11 +23,13 @@ class P2PSocialStore(Node):
 
   def about_to_receive(self):
     Node.about_to_receive(self)
-    
+
     # handle anything in queue
-    if not self.request_queue.empty():
-      request = self.request_queue.get()
+    try:
+      request = self.request_queue.get(block=False)
       request.execute(self)
+    except Empty:
+      pass
 
   def join(self):
     print 'node %s (%s:%s) joining...' % (self.node_id, self.node_config['ip'], self.node_config['port'])

@@ -1,11 +1,21 @@
 import math
+import sys
 from keyspace import *
 
+def floor_log(n):
+  i = -1
+  while n > 0:
+    n >>= 1
+    i += 1
+  return i
 
 class FingerTable(object):
   def __init__(self, me):
     # kth entry is me.id + 2^(k-1) mod keyspace size
     self.entries = [me]
+
+  def __len__(self):
+    return len(self.entries)
 
   def __getitem__(self, index):
     if index >= len(self.entries):
@@ -14,7 +24,7 @@ class FingerTable(object):
 
   def __setitem__(self, index, value):
     num_items_to_add = index - len(self.entries) + 1
-    print 'called FingerTable.__setitem__; index=%s' % index
+    sys.stdout.write('called FingerTable.__setitem__; index=%s, value=%s\n' % (index, value))
     if num_items_to_add > 0:
       self.entries.extend([None] * num_items_to_add)
     self.entries[index] = value
@@ -22,22 +32,29 @@ class FingerTable(object):
   def get_key_index(self, lookup_key):
     my_key = self.entries[0].id
 
-    #print 'called get_key_index; lookup_key=%s; my_key=%s' % (key_to_int(lookup_key), key_to_int(my_key))    
+    print 'called get_key_index; lookup_key=%s; my_key=%s' % (key_to_int(lookup_key), key_to_int(my_key))    
 
     distance = key_to_int(key_subtract_circular(lookup_key, my_key))
+    print 'distance=%s' % distance
     if distance == 0:
       return 0
 
-    # TODO: FIXME! floor(log) is broken here because we don't have enough precision
-    return int(math.log(distance, 2))
+    log = floor_log(distance) + 1
+    print 'log=%s' % log
+    return log
 
   def add(self, contact):
     index = self.get_key_index(contact.id)
     self[index] = contact
 
+  def remove(self, contact):
+    for i in xrange(len(self)):
+      if self.entries[i] == contact:
+        self.entries[i] = None
+
   def nearest_contact_less_than(self, lookup_key):
-    distance_index_space = self.get_key_index(lookup_key)
-    index = max(distance_index_space, len(self.entries)-1)
+    distance_index_space = self.get_key_index(lookup_key) - 1
+    index = min(distance_index_space, len(self.entries) - 1)
     while self[index] == None:
       index -= 1
     return self[index]

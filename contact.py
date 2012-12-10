@@ -19,7 +19,10 @@ class Contact(object):
   def __eq__(self, other):
     if not isinstance(other, Contact):
       return False
-    return self.id == other.id
+    return (self.ring_id == other.ring_id and\
+            self.id == other.id and\
+            self.ip == other.ip and\
+            self.port == other.port)
         
   def __str__(self):
     return '%s:%s' % (self.ip, self.port)

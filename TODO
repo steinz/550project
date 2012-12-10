@@ -1,6 +1,5 @@
 efaust:
 
-Su            Node join/leave data shuffling
 M             Multi-ring comms
 M             Vector version (defriend, post example)
 Tu            [slip]

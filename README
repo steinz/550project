@@ -1,0 +1,20 @@
+=== AUTHOR ===
+Ethan Faust
+efaust@cs.washington.edu
+
+=== HOW TO RUN ===
+Run either
+  make CONFIG=static
+    (for nodes with static ids in the key space -- easy debugging)
+or
+  make CONFIG=dynamic
+    (nodes with random ids in the key space -- best load balancing)
+
+This will symlink config.json to a config file to use.
+
+
+To start a node run
+  ./app.py n
+
+where n is a node id defined in config.json
+

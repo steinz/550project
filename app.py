@@ -42,12 +42,8 @@ def run(argv):
   repl.add_commands_from_module(repl_task)
   repl.loop()
 
-  # TODO: graceful shutdown
-  #node.shutdown = True
-  #network_process.join()
-
-  # For now: kill
-  network_process.terminate()
+  request_queue.put(repl_task.LeaveTask())
+  network_process.join()
 
   return 0
 

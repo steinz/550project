@@ -1,6 +1,9 @@
 
+CONFIG:=static
+
 all:
-	@echo No. Instead run ./app.py 0 and ./app.py 1 in separate consoles.
+	@rm -f config.json
+	@ln -s config-$(CONFIG).json config.json
 
 clean:
-	rm -rf *.pyc *~
+	@rm -rf *.pyc *~ config.json

@@ -5,6 +5,8 @@ import json
 import math
 import sys
 
+from console_format import *
+
 from keyspace import *
 from contact import Contact
 from chord_contacts import MultiRingChordContacts
@@ -17,13 +19,14 @@ class NodeMessage(object):
       setattr(self, key, kwargs[key])
 
 message_types = [
-  'JoinMessage', 'JoinProxyMessage', 'JoinResponse',
-  'StabilizeGetSuccessorPredecessor', 'StabilizeGotSuccessorPredecessor', 'StabilizeNotify',
-  'PingMessage', 'PingResponse',
   'ForwardMessage',
+  'PingMessage', 'PingResponse',
+  'JoinMessage', 'JoinResponse',
+  'StabilizeGetSuccessorPredecessor', 'StabilizeGotSuccessorPredecessor', 'StabilizeNotify',  
   'FindMessage', 'FindResponse',
   'GetMessage', 'GetResponse',  
-  'AppendMessage', 'AppendResponse'
+  'AppendMessage', 'AppendResponse',
+  'LeaveGetPredecessorSuccessor', 'LeaveMessage', 'LeaveResponse', 'LeaveUpdateSuccessor'
 ]
 
 for x in message_types:
@@ -50,12 +53,13 @@ class Node(BufferedUDPListener):
     print 'me: %s' % key_to_int(self.id)
     self.ring_id = ring_id
     self.contacts = MultiRingChordContacts(Contact(ring_id=ring_id, id=self.id, ip=self.ip, port=self.port, network_protocol=self))
+    self.messages_received = 0
+    self.message_limit = None
 
     # self.data['virtual_key'] = { 'data': value, 'version': vector_clock, 'requires': vector_clock, 'publisher': ? }
     self.data = {}
     self.callback_manager = CallbackManager()
     self.next_finger_to_fix = 1
-    self.shutdown = False
 
   def about_to_receive(self):
     pass
@@ -72,6 +76,10 @@ class Node(BufferedUDPListener):
     self.received_msg(contact, obj)
 
   def received_msg(self, contact, obj):
+    self.messages_received += 1
+    if self.message_limit and (self.messages_received >= self.message_limit):
+      print 'reached message limit'
+      sys.exit(1)
     handler = Node.message_handlers.get(obj.__class__)
     if handler:
       handler(self, contact, obj)
@@ -96,38 +104,43 @@ class Node(BufferedUDPListener):
     dummy_contact = Contact(ring_id=None, id=None, ip=ip, port=port, network_protocol=self)
     request_id = self.callback_manager.register(self.join_response_callback)
     dummy_contact.send(JoinMessage(request_id=request_id, join=True))
+    return request_id
 
   @handlesrequest(JoinMessage)
   def got_join_message(self, contact, obj):
-    print 'got join request from %s' % contact
-    if self.owns_key(contact.id):
-
-      old_successor = self.contacts.get_successor()
-
-      # TODO: fix this so that we only set successor
-      # after data has been pushed to the new node
-      self.contacts.set_successor(contact)
-
-      contact.send(JoinResponse(request_id=obj.request_id, successor=old_successor.to_tuple()))
+    if not self.owns_key(contact.id):
+      self.forward(
+        key = contact.id,
+        raw_key = True,
+        message = obj,
+        requester = contact
+      )
       return
-    else:
-      # Figure out who the node should be talking to to join
-      request_id = self.find(contact.id, self.join_correct_node_callback)
-      data = self.callback_manager.get_data(request_id)
-      data['joiner'] = contact
-      data['request_id'] = obj.request_id
 
-  def join_correct_node_callback(self, request_id, contact):
-    data = self.callback_manager.get_data(request_id)
-    contact.send(JoinProxyMessage(request_id=data['request_id'], joiner=data['joiner'].to_tuple()))
+    old_successor = self.contacts.get_successor()
 
-  @handlesrequest(JoinProxyMessage)
-  def got_join_proxy_message(self, contact, obj):
-    joiner = Contact.from_tuple(obj.joiner, self)
-    self.got_join_message(joiner, obj)
+    critical_data = {}
+    for key in self.data:
+      if keyspace_compare(contact.id, old_successor.id, string_to_key(key)):
+        critical_data[key] = self.data[key]
+
+    # data shuffle: potentially large message
+    contact.send(
+      JoinResponse(
+        request_id = obj.request_id,
+        successor = old_successor.to_tuple(),
+        data = critical_data
+        )
+      )
+  
+    # TODO: fix this so that we only set successor
+    # after data has been pushed to the new node
+    self.contacts.set_successor(contact)
 
   @handlesrequest(JoinResponse)
   def got_join_response(self, contact, obj):
+    for key in obj.data:
+      self.data[key] = obj.data[key]
     self.callback_manager.call(obj.request_id, (contact, obj))
     self.stabilize()
 
@@ -139,6 +152,58 @@ class Node(BufferedUDPListener):
     print '  me: %s' % key_to_int(self.id)
     print '  successor: %s' % key_to_int(self.contacts.get_successor().id)
 
+# LEAVE
+  def leave(self, callback):
+    leave_request_id = self.callback_manager.register(callback)
+    previous_key = key_subtract_circular(self.id, int_to_key(1))
+    print color('find(%s)' % key_to_int(previous_key), 'red', bold=True)
+    find_request_id = self.find(previous_key, callback=self.leave_got_predecessor, raw_key=True)
+    find_request_data = self.callback_manager.get_data(find_request_id)
+    find_request_data['leave_request_id'] = leave_request_id
+    return leave_request_id
+
+  def leave_got_predecessor(self, find_request_id, contact):
+    print color('predecessor is %s' % contact, 'red', bold=True)
+    find_request_data = self.callback_manager.get_data(find_request_id)
+
+    critical_data = {}
+    for key in self.data:
+      raw_key = string_to_key(key)
+      if keyspace_compare(self.id, self.contacts.get_successor().id, raw_key):
+        critical_data[key] = self.data[key]
+      else:
+        # cached data of which we are not the owner
+        # can be discarded
+        pass
+
+    # data shuffle: potentially large message
+    contact.send(
+      LeaveMessage(
+        data = critical_data,
+        successor = self.contacts.get_successor().to_tuple(),
+        request_id = find_request_data['leave_request_id']
+        )
+      )
+    # HACK: don't accept any more messages
+    self.id = self.contacts.get_successor().id
+
+  @handlesrequest(LeaveMessage)
+  def got_leave_message(self, contact, obj):
+    for key in obj.data:
+      self.data[key] = obj.data[key]
+    self.contacts.set_successor(Contact.from_tuple(obj.successor, self))
+    self.contacts.get_successor().send(LeaveUpdateSuccessor(leaving=contact.to_tuple()))
+    self.contacts.remove(contact)
+    contact.send(LeaveResponse(request_id=obj.request_id))
+
+  @handlesrequest(LeaveResponse)
+  def got_leave_response(self, contact, obj):
+    self.callback_manager.call(obj.request_id, contact)
+
+  @handlesrequest(LeaveUpdateSuccessor)
+  def got_leave_update_successor(self, contact, obj):
+    self.contacts.remove(Contact.from_tuple(obj.leaving, self))
+    self.contacts.set_predecessor(contact)
 
 # STABILIZE
   def stabilize(self):
@@ -204,6 +269,7 @@ class Node(BufferedUDPListener):
   def resolve_key(self, key, raw_key=False):
     return (key if raw_key else string_to_key(key))
 
+# FORWARD
   def forward(self, key, message, raw_key=False, requester=None):
     test_key = self.resolve_key(key, raw_key)
     requester = (requester if requester else self.contacts.me())
@@ -213,6 +279,7 @@ class Node(BufferedUDPListener):
       self.received_msg(requester, message)
     else:
       contact = self.contacts.nearest_contact_less_than(test_key)
+      print color('nearest contact to %s: %s' % (key_to_int(test_key), contact), 'red', bold=True)
       contact.send(
         ForwardMessage(
           key = key,
