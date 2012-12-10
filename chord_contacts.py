@@ -42,6 +42,9 @@ class FingerTable(object):
       index -= 1
     return self[index]
 
+  def size(self):
+    return len(self.entries)
+
 
 class ChordContacts(FingerTable):
   """
@@ -51,6 +54,9 @@ class ChordContacts(FingerTable):
     FingerTable.__init__(self, me)
     self.set_successor(me)
     self.set_predecessor(me)
+
+  def me(self):
+    return self[0]
 
   def get_successor(self):
     return self[1]

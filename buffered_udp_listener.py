@@ -2,12 +2,10 @@ from udp_listener import UDPListener
 import cPickle as pickle
 import struct
 
-# 1200
-MAX_MESSAGE_SIZE=30
+MAX_MESSAGE_SIZE=1200
 
 TYPE_OBJ_START = 0
 TYPE_OBJ_DATA = 1
-TYPE_ACK = 2
 
 class RawMessage(object):
   wire_header = 'HHI'

@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+import inspect
+import json
+import math
+import sys
+
 from keyspace import *
 from contact import Contact
 from chord_contacts import MultiRingChordContacts
@@ -11,24 +16,19 @@ class NodeMessage(object):
     for key in kwargs:
       setattr(self, key, kwargs[key])
 
-class PingMessage(NodeMessage):
-  pass
-class PingResponse(NodeMessage):
-  pass
-class FindMessage(NodeMessage):
-  pass
-class FindResponse(NodeMessage):
-  pass
-class GetMessage(NodeMessage):
-  pass
-class GetResponse(NodeMessage):
-  pass
-class JoinMessage(NodeMessage):
-  pass
-class JoinProxyMessage(NodeMessage):
-  pass
-class JoinResponse(NodeMessage):
-  pass
+message_types = [
+  'JoinMessage', 'JoinProxyMessage', 'JoinResponse',
+  'StabilizeGetSuccessorPredecessor', 'StabilizeGotSuccessorPredecessor', 'StabilizeNotify',
+  'PingMessage', 'PingResponse',
+  'ForwardMessage',
+  'FindMessage', 'FindResponse',
+  'GetMessage', 'GetResponse',  
+  'AppendMessage', 'AppendResponse'
+]
+
+for x in message_types:
+  obj = type(x, (NodeMessage,), {})
+  setattr(sys.modules[__name__], x, obj)
 
 def message_to_string(msg):
   d = msg.__dict__.copy()
@@ -36,11 +36,16 @@ def message_to_string(msg):
     d['id'] = key_to_int(d['id'])
   return '%s: %s' % (msg.__class__.__name__, str(d))
 
-class Node(BufferedUDPListener):
-  
+def handlesrequest(message_type):
+  def decorator(func):
+    func.message_type = message_type
+    return func
+  return decorator
 
+class Node(BufferedUDPListener):
   def __init__(self, ring_id=1, id=None, ip='127.0.0.1', port=8080):
     BufferedUDPListener.__init__(self, ip, port)
+    self.set_timeout(0.25)
     self.id = id if id != None else random_key()
     print 'me: %s' % key_to_int(self.id)
     self.ring_id = ring_id
@@ -48,9 +53,13 @@ class Node(BufferedUDPListener):
 
     # self.data['virtual_key'] = { 'data': value, 'version': vector_clock, 'requires': vector_clock, 'publisher': ? }
     self.data = {}
-    
     self.callback_manager = CallbackManager()
-  
+    self.next_finger_to_fix = 1
+    self.shutdown = False
+
+  def about_to_receive(self):
+    pass
+
   def received_obj(self, ip, port, obj):
     contact = Contact(ring_id=obj.ring_id, id=obj.id, ip=ip, port=port, network_protocol=self)
     if hasattr(obj, 'join') and obj.join:
@@ -88,6 +97,7 @@ class Node(BufferedUDPListener):
     request_id = self.callback_manager.register(self.join_response_callback)
     dummy_contact.send(JoinMessage(request_id=request_id, join=True))
 
+  @handlesrequest(JoinMessage)
   def got_join_message(self, contact, obj):
     print 'got join request from %s' % contact
     if self.owns_key(contact.id):
@@ -111,12 +121,15 @@ class Node(BufferedUDPListener):
     data = self.callback_manager.get_data(request_id)
     contact.send(JoinProxyMessage(request_id=data['request_id'], joiner=data['joiner'].to_tuple()))
 
+  @handlesrequest(JoinProxyMessage)
   def got_join_proxy_message(self, contact, obj):
     joiner = Contact.from_tuple(obj.joiner, self)
     self.got_join_message(joiner, obj)
 
+  @handlesrequest(JoinResponse)
   def got_join_response(self, contact, obj):
     self.callback_manager.call(obj.request_id, (contact, obj))
+    self.stabilize()
 
   def join_response_callback(self, request_id, (contact, obj)):
     self.contacts.set_successor(Contact.from_tuple(obj.successor, self))
@@ -127,73 +140,188 @@ class Node(BufferedUDPListener):
     print '  successor: %s' % key_to_int(self.contacts.get_successor().id)
 
 
+# STABILIZE
+  def stabilize(self):
+    self.contacts.get_successor().send(StabilizeGetSuccessorPredecessor())
+
+  @handlesrequest(StabilizeGetSuccessorPredecessor)
+  def stabilize_get_successor_predecessor(self, contact, obj):
+    contact.send(StabilizeGotSuccessorPredecessor(predecessor=self.contacts.get_predecessor().to_tuple()))
+
+  @handlesrequest(StabilizeGotSuccessorPredecessor)
+  def stabilize_got_successor_predecessor(self, contact, obj):
+    x = Contact.from_tuple(obj.predecessor, self)
+    if keyspace_compare(self.id, self.contacts.get_successor().id, x.id):
+      self.contacts.set_successor(x)
+    self.contacts.get_successor().send(StabilizeNotify())
+
+  @handlesrequest(StabilizeNotify)
+  def stabilize_notify(self, contact, obj):
+    if not self.contacts.get_predecessor() or \
+       keyspace_compare(self.contacts.get_predecessor().id, self.id, contact.id):
+      self.contacts.set_predecessor(contact)
+
+# FINGERS
+  def fix_fingers(self):
+    self.next_finger_to_fix += 1
+    if self.next_finger_to_fix >= math.log(keyspace_size(), 2):
+      self.next_finger_to_fix = 1
+    self.find(keyspace_add_circular(self.id, 2**(self.next_finger_to_fix-1)), self.fix_finger_callback)
+    data = self.callback_manager.get_data(request_id)
+    data['next'] = self.next_finger_to_fix
+
+  def fix_finger_callback(self, request_id, contact):
+    data = self.callback_manager.get_data(request_id)
+    self.contacts[data['next']] = contact
+
+  def check_predecessor(self):
+    if not self.get_predecessor():
+      return
+    request_id = self.ping(self.get_predecessor(), self.predecessor_ping_response)
+    data = self.callback_manager.get_data(request_id)
+    # TODO: set timeout and expire predecessor
+    # if we don't hear back from the ping within the timeout interval
+    
+  def predecessor_ping_response(self, request_id, contact):
+    data = self.callback_manager.get_data(request_id)
+    # TODO: cancel timeout previously set
+
+
 # PING
   def ping(self, contact, callback):
     request_id = self.callback_manager.register(callback)
     contact.send(PingMessage(request_id=request_id))
+    return request_id
 
+  @handlesrequest(PingMessage)
   def got_ping(self, contact, obj):
     contact.send(PingResponse(request_id=obj.request_id))
 
+  @handlesrequest(PingResponse)
   def got_ping_response(self, contact, obj):
     self.callback_manager.call(obj.request_id, contact)
 
-# FIND
-  def find(self, key, callback):
+  def resolve_key(self, key, raw_key=False):
+    return (key if raw_key else string_to_key(key))
+
+  def forward(self, key, message, raw_key=False, requester=None):
+    test_key = self.resolve_key(key, raw_key)
+    requester = (requester if requester else self.contacts.me())
+    if self.owns_key(test_key):
+      message.key = key
+      message.raw_key = raw_key
+      self.received_msg(requester, message)
+    else:
+      contact = self.contacts.nearest_contact_less_than(test_key)
+      contact.send(
+        ForwardMessage(
+          key = key,
+          raw_key = raw_key,
+          message = message,
+          requester = requester.to_tuple()
+          )
+        )
+
+  @handlesrequest(ForwardMessage)
+  def got_forward_message(self, contact, obj):
+    self.forward(
+      key=obj.key,
+      message=obj.message,
+      raw_key=obj.raw_key,
+      requester=Contact.from_tuple(obj.requester, self)
+      )
+
+  def get_requester(self, contact, obj):
+    if hasattr(obj, 'requester'):
+      return Contact.from_tuple(obj.requester, self)
+    return contact
+
+
+# FIND(raw key: 20 bytes)
+  def find(self, key, callback, raw_key=True):
     request_id = self.callback_manager.register(callback)
-    if self.owns_key(key):
-      self.callback_manager.call(request_id, self.contacts.me)
-      return request_id
-    other_contact = self.contacts.nearest_contact_less_than(key)
-    other_contact.send(FindMessage(request_id=request_id, key=key))
+    self.forward(
+      key = key,
+      raw_key = raw_key,
+      message = FindMessage(request_id = request_id),
+      )
     return request_id
     
+  @handlesrequest(FindMessage)
   def got_find(self, contact, obj):
-    if self.owns_key(obj.key):
-      contact.send(FindResponse(request_id=obj.request_id, key=obj.key))
-      return
-    other_contact = self.contacts.nearest_contact_less_than(obj.key)
-    other_contact.send(FindMessage(request_id=obj.request_id, key=obj.key))
+    requester = self.get_requester(contact, obj)
+    contact.send(FindResponse(request_id=obj.request_id, key=obj.key, raw_key=obj.raw_key))
 
+  @handlesrequest(FindResponse)
   def got_find_response(self, contact, obj):
     self.callback_manager.call(obj.request_id, contact)
 
-# GET
-  def get(self, key):
+# GET(physical key: a string)
+  def get(self, key, callback):
     request_id = self.callback_manager.register(callback)
-    if self.owns_key(key):
-      self.callback_manager.call(request_id, (self.contacts.me, self.data.get(key)))
-      return request_id
-    other_contact = self.contacts.nearest_contact_less_than(key)
-    other_contact.send(GetMessage(request_id=request_id, key=key))
+    self.forward(
+      key = key,
+      raw_key = False,
+      message = GetMessage(request_id = request_id)
+      )
     return request_id
 
+  @handlesrequest(GetMessage)
   def got_get_message(self, contact, obj):
-    if self.owns_key(obj.key):
-      contact.send(GetResponse(request_id=obj.request_id, key=obj.key, value=self.data.get(key)))
-      return
-    other_contact = self.contacts.nearest_contact_less_than(obj.key)
-    other_contact.send(GetMessage(request_id=obj.request_id, key=obj.key))
+    key = self.resolve_key(obj.key, obj.raw_key)
+    value = self.data.get(key)
+    contact.send(
+      GetResponse(
+        request_id = obj.request_id,
+        key = obj.key,
+        value = value
+        )
+      )
 
+  @handlesrequest(GetResponse)
   def got_get_response(self, contact, obj):
-    self.callback_manager.call(obj.request_id, (contact, obj.value))
+    self.callback_manager.call(obj.request_id, (contact, obj.key, obj.value))
 
-  def put(self, key, value):
-    pass
+# TODO: PUT, DELETE?
 
-  def delete(self, key):
-    pass
+# APPEND(physical key: a string, value: anything)
+  def append(self, key, value, callback):
+    request_id = self.callback_manager.register(callback)
+    self.forward(
+      key = key,
+      raw_key = False,
+      message = AppendMessage(
+        request_id = request_id,
+        value = value
+        )
+      )
 
-  message_handlers = {
-    PingMessage: got_ping,
-    PingResponse: got_ping_response,
-    FindMessage: got_find,
-    FindResponse: got_find_response,
-    GetMessage: got_get_message,
-    GetResponse: got_get_response,
-    JoinMessage: got_join_message,
-    JoinProxyMessage: got_join_proxy_message,
-    JoinResponse: got_join_response
-  }
+  @handlesrequest(AppendMessage)
+  def got_append(self, contact, obj):
+    key = self.resolve_key(obj.key, obj.raw_key)
+    if key not in self.data:
+      self.data[key] = {
+        'data': [],
+        'requires': None,
+        'version': None
+      }
+    self.data[key]['data'].append(obj.value)
+    print json.dumps(self.data[key], indent=2)
+    contact.send(AppendResponse(request_id=obj.request_id))
+
+  @handlesrequest(AppendResponse)
+  def got_append_response(self, contact, obj):
+    self.callback_manager.call(obj.request_id, contact)
+
   
+# put message handlers into a dict
+Node.message_handlers = {}
+for name in dir(Node):
+  x = getattr(Node, name)
+  if not inspect.ismethod(x) or not hasattr(x, 'message_type'):
+    continue
+  message_type = getattr(x, 'message_type')
+  if not issubclass(message_type, NodeMessage):
+    continue
+  Node.message_handlers[message_type] = x
 

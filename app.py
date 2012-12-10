@@ -1,31 +1,14 @@
 #!/usr/bin/env python
 
-import sys
 import json
-from node import Node
-from keyspace import *
+from multiprocessing import Process, Queue
+import sys
+import time
 
-class P2PSocialStore(Node):
-  def __init__(self, config, node_id):
-    self.config = config
-    self.node_id = node_id
-    self.node_config = config['nodes'][node_id]
-    id = int_to_key(int(self.node_config['id'])) if self.node_config.get('id') != None else None
-    Node.__init__(self, ring_id=self.node_config['ring_id'], id=id, ip=self.node_config['ip'], port=self.node_config['port'])
-    self.join()    
-    self.start()
+from app_node import P2PSocialStore
+from repl import REPL
+import repl_task
 
-  def join(self):
-    print 'node %s (%s:%s) joining...' % (self.node_id, self.node_config['ip'], self.node_config['port'])
-    if self.node_id != '0':
-      Node.join(self, self.config['nodes']['0']['ip'], self.config['nodes']['0']['port'])
-
-  #def received_msg(self, contact, obj):
-  #  Node.received_msg(self, contact, obj)
-  #  print obj
-
-  def new_connection(self, contact):
-    print 'now connected to %s' % contact
 
 
 def read_config(filename='config.json'):
@@ -46,6 +29,26 @@ def run(argv):
 
   node_config = config['nodes'][node_id]
   node = P2PSocialStore(config, node_id)
+
+  request_queue = Queue()
+  network_process = Process(target=node.start, args=(request_queue,))
+  network_process.start()
+
+  # don't let this thread touch node ever again
+  # it's running in a separate process
+  del node
+ 
+  repl = REPL(prompt='dht>> ', command_queue=request_queue)
+  repl.add_commands_from_module(repl_task)
+  repl.loop()
+
+  # TODO: graceful shutdown
+  #node.shutdown = True
+  #network_process.join()
+
+  # For now: kill
+  network_process.terminate()
+
   return 0
 
 if __name__ == '__main__':

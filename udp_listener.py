@@ -32,6 +32,9 @@ class UDPListener(object):
   def timed_out(self):
     pass
 
+  def about_to_receive(self):
+    pass
+
   def stop_listening(self):
     self.stop = True
 
@@ -39,7 +42,11 @@ class UDPListener(object):
     self.stop = False
     while not self.stop:
       try:
+        self.about_to_receive()
+
+        # blocking
         ip, port, message = self.receive()
+        
         self.received(ip, port, message)
       except socket.timeout:
         self.timed_out()
