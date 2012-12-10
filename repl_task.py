@@ -53,9 +53,10 @@ class GetKeyTask(QueueTask):
     key = self.args
     node.get(key, self.get_callback)
 
-  def get_callback(self, request_id, (owner, key, value)):
+  def get_callback(self, request_id, (node, owner, key, value)):
     sys.stdout.write('\nget(%s):\n' % key)
-    sys.stdout.write('%s\n' % json.dumps(value, indent=2))
+    sys.stdout.write('%s\n' % json.dumps(node.value_to_wire(value), indent=2))
+    sys.stdout.flush()
 
 class AppendTask(QueueTask):
   command = 'append'
@@ -72,8 +73,8 @@ class AppendTask(QueueTask):
     key, value = get_first_word(self.args)
     node.append(key, value, self.append_callback)    
 
-  def append_callback(self, request_id, contact):
-    sys.stdout.write('\nappended.\n')
+  def append_callback(self, request_id, (node, contact, version)):
+    sys.stdout.write('\nappended. new version: %s\n' % version)
 
 class LeaveTask(QueueTask):
   command = 'leave'

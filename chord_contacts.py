@@ -24,7 +24,7 @@ class FingerTable(object):
 
   def __setitem__(self, index, value):
     num_items_to_add = index - len(self.entries) + 1
-    sys.stdout.write('called FingerTable.__setitem__; index=%s, value=%s\n' % (index, value))
+    #sys.stdout.write('called FingerTable.__setitem__; index=%s, value=%s\n' % (index, value))
     if num_items_to_add > 0:
       self.entries.extend([None] * num_items_to_add)
     self.entries[index] = value
@@ -32,15 +32,15 @@ class FingerTable(object):
   def get_key_index(self, lookup_key):
     my_key = self.entries[0].id
 
-    print 'called get_key_index; lookup_key=%s; my_key=%s' % (key_to_int(lookup_key), key_to_int(my_key))    
+    #print 'called get_key_index; lookup_key=%s; my_key=%s' % (key_to_int(lookup_key), key_to_int(my_key))    
 
     distance = key_to_int(key_subtract_circular(lookup_key, my_key))
-    print 'distance=%s' % distance
+    #print 'distance=%s' % distance
     if distance == 0:
       return 0
 
     log = floor_log(distance) + 1
-    print 'log=%s' % log
+    #print 'log=%s' % log
     return log
 
   def add(self, contact):

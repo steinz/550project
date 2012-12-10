@@ -14,7 +14,9 @@ class P2PSocialStore(Node):
       ring_id=self.node_config['ring_id'],
       id=id,
       ip=self.node_config['ip'],
-      port=self.node_config['port'])
+      port=self.node_config['port'],
+      user_id=self.node_config['user_id']
+      )
     self.join()
 
   def start(self, request_queue):

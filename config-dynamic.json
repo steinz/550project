@@ -3,27 +3,32 @@
     "0": {
       "ip": "127.0.0.1",
       "port": 8080,
-      "ring_id": 1
+      "ring_id": 1,
+      "user_id": 100
     },
     "1": {
       "ip": "127.0.0.1",
       "port": 8081,
-      "ring_id": 1
+      "ring_id": 1,
+      "user_id": 101
     },
     "2": {
       "ip": "127.0.0.1",
       "port": 8082,
-      "ring_id": 1
+      "ring_id": 1,
+      "user_id": 102
     },
     "3": {
       "ip": "127.0.0.1",
       "port": 8083,
-      "ring_id": 1
+      "ring_id": 1,
+      "user_id": 103
     },
     "4": {
       "ip": "127.0.0.1",
       "port": 8084,
-      "ring_id": 1
+      "ring_id": 1,
+      "user_id": 104
     }
   }
 }

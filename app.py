@@ -8,23 +8,27 @@ import time
 from app_node import P2PSocialStore
 from repl import REPL
 import repl_task
-
+from console_format import *
 
 
 def read_config(filename='config.json'):
-  with open(filename, 'r') as f:
-    return json.loads(f.read())
+  try:
+    with open(filename, 'r') as f:
+      return json.loads(f.read())
+  except IOError as e:
+    sys.stderr.write('%s\ndid you run\n  make CONFIG=[static|dynamic]\n' % color('failed to read \'%s\'' % e.filename, 'red', bold=True))
+    sys.exit(1)
 
 def run(argv):
   if len(argv) < 2:
-    print 'usage: %s node_id' % argv[0]
+    sys.stderr.write(color('usage: %s node_id\n' % argv[0], 'red', bold=True))
     return 1
   
   node_id = argv[1]
 
   config = read_config()
   if node_id not in config['nodes']:
-    print 'invalid node id'
+    sys.stderr.write('%s\ncheck config file\n' % color('invalid node id', 'red', bold=True))
     return 2
 
   node_config = config['nodes'][node_id]

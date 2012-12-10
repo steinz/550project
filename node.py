@@ -12,6 +12,7 @@ from contact import Contact
 from chord_contacts import MultiRingChordContacts
 from buffered_udp_listener import BufferedUDPListener
 from callback_manager import CallbackManager
+from vector_version import VectorVersion
 
 class NodeMessage(object):
   def __init__(self, **kwargs):
@@ -46,12 +47,13 @@ def handlesrequest(message_type):
   return decorator
 
 class Node(BufferedUDPListener):
-  def __init__(self, ring_id=1, id=None, ip='127.0.0.1', port=8080):
+  def __init__(self, ring_id=1, id=None, ip='127.0.0.1', port=8080, user_id=None):
     BufferedUDPListener.__init__(self, ip, port)
     self.set_timeout(0.25)
     self.id = id if id != None else random_key()
     print 'me: %s' % key_to_int(self.id)
     self.ring_id = ring_id
+    self.user_id = user_id
     self.contacts = MultiRingChordContacts(Contact(ring_id=ring_id, id=self.id, ip=self.ip, port=self.port, network_protocol=self))
     self.messages_received = 0
     self.message_limit = None
@@ -122,7 +124,7 @@ class Node(BufferedUDPListener):
     critical_data = {}
     for key in self.data:
       if keyspace_compare(contact.id, old_successor.id, string_to_key(key)):
-        critical_data[key] = self.data[key]
+        critical_data[key] = self.value_to_wire(self.data[key])
 
     # data shuffle: potentially large message
     contact.send(
@@ -140,7 +142,7 @@ class Node(BufferedUDPListener):
   @handlesrequest(JoinResponse)
   def got_join_response(self, contact, obj):
     for key in obj.data:
-      self.data[key] = obj.data[key]
+      self.data[key] = self.value_from_wire(obj.data[key])
     self.callback_manager.call(obj.request_id, (contact, obj))
     self.stabilize()
 
@@ -170,7 +172,7 @@ class Node(BufferedUDPListener):
     for key in self.data:
       raw_key = string_to_key(key)
       if keyspace_compare(self.id, self.contacts.get_successor().id, raw_key):
-        critical_data[key] = self.data[key]
+        critical_data[key] = self.value_to_wire(self.data[key])
       else:
         # cached data of which we are not the owner
         # can be discarded
@@ -190,7 +192,7 @@ class Node(BufferedUDPListener):
   @handlesrequest(LeaveMessage)
   def got_leave_message(self, contact, obj):
     for key in obj.data:
-      self.data[key] = obj.data[key]
+      self.data[key] = self.value_from_wire(obj.data[key])
     self.contacts.set_successor(Contact.from_tuple(obj.successor, self))
     self.contacts.get_successor().send(LeaveUpdateSuccessor(leaving=contact.to_tuple()))
     self.contacts.remove(contact)
@@ -279,7 +281,7 @@ class Node(BufferedUDPListener):
       self.received_msg(requester, message)
     else:
       contact = self.contacts.nearest_contact_less_than(test_key)
-      print color('nearest contact to %s: %s' % (key_to_int(test_key), contact), 'red', bold=True)
+      #print color('nearest contact to %s: %s' % (key_to_int(test_key), contact), 'red', bold=True)
       contact.send(
         ForwardMessage(
           key = key,
@@ -317,7 +319,13 @@ class Node(BufferedUDPListener):
   @handlesrequest(FindMessage)
   def got_find(self, contact, obj):
     requester = self.get_requester(contact, obj)
-    contact.send(FindResponse(request_id=obj.request_id, key=obj.key, raw_key=obj.raw_key))
+    contact.send(
+      FindResponse(
+        request_id = obj.request_id,
+        key = obj.key,
+        raw_key = obj.raw_key
+        )
+      )
 
   @handlesrequest(FindResponse)
   def got_find_response(self, contact, obj):
@@ -336,30 +344,48 @@ class Node(BufferedUDPListener):
   @handlesrequest(GetMessage)
   def got_get_message(self, contact, obj):
     key = self.resolve_key(obj.key, obj.raw_key)
-    value = self.data.get(key)
     contact.send(
       GetResponse(
         request_id = obj.request_id,
         key = obj.key,
-        value = value
+        value = self.value_to_wire(self.data[key])
         )
       )
 
   @handlesrequest(GetResponse)
   def got_get_response(self, contact, obj):
-    self.callback_manager.call(obj.request_id, (contact, obj.key, obj.value))
+    self.callback_manager.call(
+      obj.request_id,
+      (self, contact, obj.key, self.value_from_wire(obj.value))
+      )
 
 # TODO: PUT, DELETE?
 
+  def value_to_wire(self, data):
+    return {
+      'data': data['data'],
+      'requires': data['requires'].to_tuples(),
+      'version': data['version'].to_tuples(),
+    }
+
+  def value_from_wire(self, data):
+    return {
+      'data': data['data'],
+      'requires': VectorVersion.from_tuples(data['requires']),
+      'version': VectorVersion.from_tuples(data['version']),
+    }
+
 # APPEND(physical key: a string, value: anything)
-  def append(self, key, value, callback):
+  def append(self, key, value, callback, requires=None):
     request_id = self.callback_manager.register(callback)
     self.forward(
       key = key,
       raw_key = False,
       message = AppendMessage(
         request_id = request_id,
-        value = value
+        value = value,
+        requires = (requires.to_tuples() if requires else []),
+        user_id = self.user_id
         )
       )
 
@@ -369,16 +395,23 @@ class Node(BufferedUDPListener):
     if key not in self.data:
       self.data[key] = {
         'data': [],
-        'requires': None,
-        'version': None
+        'requires': VectorVersion(),
+        'version': VectorVersion(),
       }
     self.data[key]['data'].append(obj.value)
-    print json.dumps(self.data[key], indent=2)
-    contact.send(AppendResponse(request_id=obj.request_id))
+    self.data[key]['requires'].merge(VectorVersion.from_tuples(obj.requires))
+    self.data[key]['version'].increment(obj.user_id)
+
+    contact.send(
+      AppendResponse(
+        request_id = obj.request_id,
+        version = self.data[key]['version'].to_tuples()
+        )
+      )
 
   @handlesrequest(AppendResponse)
   def got_append_response(self, contact, obj):
-    self.callback_manager.call(obj.request_id, contact)
+    self.callback_manager.call(obj.request_id, (self, contact, obj.version))
 
   
 # put message handlers into a dict
