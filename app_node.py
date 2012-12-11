@@ -1,3 +1,4 @@
+from keyspace import int_to_key
 from multiring_node import MultiRingNode
 
 # Queue for REPL client to communicate with network process

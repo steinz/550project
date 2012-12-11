@@ -4,35 +4,51 @@
       "ip": "127.0.0.1",
       "port": 8080,
       "ring_id": 1,
-      "user_id": 100
+      "user_id": 100,
+      "id": 0
     },
     "1": {
       "ip": "127.0.0.1",
       "port": 8081,
       "ring_id": 1,
-      "user_id": 101
+      "user_id": 101,
+      "id": 1
     },
     "2": {
       "ip": "127.0.0.1",
       "port": 8082,
       "ring_id": 1,
-      "user_id": 102
+      "user_id": 102,
+      "id": 2
     },
     "3": {
       "ip": "127.0.0.1",
       "port": 8083,
-      "ring_id": 1,
-      "user_id": 103
+      "ring_id": 2,
+      "user_id": 103,
+      "id": 3
     },
     "4": {
       "ip": "127.0.0.1",
       "port": 8084,
-      "ring_id": 1,
-      "user_id": 104
+      "ring_id": 2,
+      "user_id": 104,
+      "id": 4
+    },
+    "5": {
+      "ip": "127.0.0.1",
+      "port": 8085,
+      "ring_id": 2,
+      "user_id": 105,
+      "id": 5
     }
   },
   "directory_servers": {
     "1": {
+      "ip": "127.0.0.1",
+      "port": 1234
+    },
+    "2": {
       "ip": "127.0.0.1",
       "port": 1234
     }

@@ -88,7 +88,7 @@ class LeaveTask(QueueTask):
     return 'usage: %s (no arguments)' % cls.command
 
   def execute(self, node):
-    node.leave(self.leave_callback)
+    node.leave_ring(self.leave_callback)
 
   def leave_callback(self, request_id, predecessor):
     print 'left.'
@@ -181,3 +181,45 @@ class PrintFingerTableTask(QueueTask):
         sys.stdout.write('%d:\t%s\t%d\n' % (i, e, key_int))
     sys.stdout.write('---\n')
     sys.stdout.flush()
+
+
+class MultipleAppendTask(QueueTask):
+  command = 'multiple_append'
+
+  @classmethod
+  def describe(cls):
+    return 'append to all replicas in this ring and other rings'
+
+  @classmethod
+  def help(cls):
+    return 'usage: %s virtual_key value' % cls.command
+
+  def execute(self, node):
+    key, value = get_first_word(self.args)
+    node.multiple_append(
+      key = key,
+      value = value,
+      requires = None,
+      one_completed_callback=self.one_completed,
+      all_completed_callback=self.all_completed
+      )
+
+  def one_completed(self, multiple_append_request_id,
+        (node, multiple_append_data, contact, physical_key)):
+
+    version = multiple_append_data['keys'][contact.ring_id][physical_key][1]
+
+    sys.stdout.write('\nappended:\n')
+    sys.stdout.write('  ring_id: %s\n' % contact.ring_id)
+    sys.stdout.write('  node: %s:%s\n' % (contact.ip, contact.port))
+    sys.stdout.write('  virtual key: %s\n' % multiple_append_data['virtual_key'])
+    sys.stdout.write('  physical key: %s\n' % physical_key)
+    sys.stdout.write('  resulting version: %s\n\n' % version)
+    sys.stdout.flush()
+
+  def all_completed(self, multiple_append_request_id, (node, multiple_append_data)):
+    sys.stdout.write('\nall appends completed.\n')
+    sys.stdout.flush()
+
+
+

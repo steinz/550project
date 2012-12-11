@@ -1,6 +1,7 @@
 import math
 import sys
 from keyspace import *
+import random
 
 def floor_log(n):
   i = -1
@@ -104,4 +105,14 @@ class MultiRingChordContacts(ChordContacts):
       if contact.ring_id not in self.other_rings:
         self.other_rings[contact.ring_id] = []
       self.other_rings[contact.ring_id].append(contact)
+
+  def get_ring_contact(self, ring_id):
+    if ring_id not in self.other_rings or len(self.other_rings[ring_id]) == 0:
+      return None    
+    return random.sample(self.other_rings[ring_id], 1)[0]
+
+  def iter_other_rings(self):
+    for key in self.other_rings:
+      if len(self.other_rings[key]) > 0:
+        yield key
 

@@ -29,22 +29,22 @@ class DirectoryServer(MessageHandlerNode):
 
   @handlesrequest(DirectoryServerJoin)
   def got_join(self, src_ip, src_port, message):
-    ring_set = self.nodes_by_ring.get(message.ring_id)    
-    node = random.sample(ring_set, 1)[0]
+    ring_set = self.nodes_by_ring.get(message.ring_id) 
+    primary_ring_contact = random.sample(ring_set, 1)[0]
     ring_set.add((src_ip, src_port))
     sys.stdout.write('added node %s:%s to ring %d\n' % (src_ip, src_port, message.ring_id))
-
+    #sys.stdout.write('  contact %s:%s\n' % (primary_ring_contact[0], primary_ring_contact[1]))
     other_ring_contacts = []
     for ring_id in self.nodes_by_ring:
       if ring_id == message.ring_id:
         continue
-      node = random.sample(ring_set, 1)[0]
+      node = random.sample(self.nodes_by_ring.get(ring_id), 1)[0]
       other_ring_contacts.append((ring_id, node[0], node[1]))
 
     self.send_obj(src_ip, src_port, DirectoryServerJoinContact(
       ring_id = message.ring_id,
-      contact_ip = node[0],
-      contact_port = node[1],
+      contact_ip = primary_ring_contact[0],
+      contact_port = primary_ring_contact[1],
       other_ring_contacts = other_ring_contacts
       )
       )

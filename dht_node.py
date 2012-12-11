@@ -274,16 +274,29 @@ class DHTNode(MessageHandlerNode):
     return (key if raw_key else string_to_key(key))
 
 # FORWARD
-  def forward(self, key, message, raw_key=False, requester=None):
+  def forward(self, key, message, raw_key=False, requester=None, ring_id=None):
+    ring_id = (ring_id if ring_id != None else self.ring_id)
     test_key = self.resolve_key(key, raw_key)
     requester = (requester if requester else self.contacts.me())
-    if self.owns_key(test_key):
-      message.key = key
-      message.raw_key = raw_key
-      self.received_msg(requester, message)
+
+    if ring_id == self.ring_id:
+      if self.owns_key(test_key):
+        message.key = key
+        message.raw_key = raw_key
+        self.received_msg(requester, message)
+      elif ring_id == self.ring_id:
+        contact = self.contacts.nearest_contact_less_than(test_key)
+        #sys.stdout.write(color('nearest contact to %s: %s\n' % (key_to_int(test_key), contact), 'red', bold=True))
+        contact.send(
+          ForwardMessage(
+            key = key,
+            raw_key = raw_key,
+            message = message,
+            requester = requester.to_tuple()
+            )
+          )
     else:
-      contact = self.contacts.nearest_contact_less_than(test_key)
-      #sys.stdout.write(color('nearest contact to %s: %s\n' % (key_to_int(test_key), contact), 'red', bold=True))
+      contact = self.contacts.get_ring_contact(ring_id)
       contact.send(
         ForwardMessage(
           key = key,
@@ -309,12 +322,13 @@ class DHTNode(MessageHandlerNode):
 
 
 # FIND(raw key: 20 bytes)
-  def find(self, key, callback, raw_key=True):
+  def find(self, key, callback, raw_key=True, ring_id=None):
     request_id = self.callback_manager.register(callback)
     self.forward(
       key = key,
       raw_key = raw_key,
       message = FindMessage(request_id = request_id),
+      ring_id = ring_id
       )
     return request_id
     
@@ -334,12 +348,13 @@ class DHTNode(MessageHandlerNode):
     self.callback_manager.call(obj.request_id, contact)
 
 # GET(physical key: a string)
-  def get(self, key, callback):
+  def get(self, key, callback, ring_id=None):
     request_id = self.callback_manager.register(callback)
     self.forward(
       key = key,
       raw_key = False,
-      message = GetMessage(request_id = request_id)
+      message = GetMessage(request_id = request_id),
+      ring_id = ring_id
       )
     return request_id
 
@@ -378,7 +393,7 @@ class DHTNode(MessageHandlerNode):
     }
 
 # APPEND(physical key: a string, value: anything)
-  def append(self, key, value, callback, requires=None):
+  def append(self, key, value, callback, requires=None, ring_id=None):
     request_id = self.callback_manager.register(callback)
     self.forward(
       key = key,
@@ -388,8 +403,10 @@ class DHTNode(MessageHandlerNode):
         value = value,
         requires = (requires.to_tuples() if requires else []),
         user_id = self.user_id
-        )
+        ),
+      ring_id = ring_id
       )
+    return request_id
 
   @handlesrequest(AppendMessage)
   def got_append(self, contact, obj):
