@@ -14,6 +14,8 @@ from buffered_udp_listener import BufferedUDPListener
 from callback_manager import CallbackManager
 from vector_version import VectorVersion
 
+# base message
+# store any attributes given to the constructor
 class NodeMessage(object):
   def __init__(self, **kwargs):
     for key in kwargs:
@@ -30,9 +32,19 @@ message_types = [
   'LeaveGetPredecessorSuccessor', 'LeaveMessage', 'LeaveResponse', 'LeaveUpdateSuccessor'
 ]
 
+# define classes for every item in message_types
 for x in message_types:
   obj = type(x, (NodeMessage,), {})
   setattr(sys.modules[__name__], x, obj)
+
+# decorator for functions to define which message type they handle
+# used to dynamically map messages to functions
+def handlesrequest(message_type):
+  def decorator(func):
+    func.message_type = message_type
+    return func
+  return decorator
+
 
 def message_to_string(msg):
   d = msg.__dict__.copy()
@@ -40,25 +52,28 @@ def message_to_string(msg):
     d['id'] = key_to_int(d['id'])
   return '%s: %s' % (msg.__class__.__name__, str(d))
 
-def handlesrequest(message_type):
-  def decorator(func):
-    func.message_type = message_type
-    return func
-  return decorator
-
 class Node(BufferedUDPListener):
+  """
+   Chord node
+
+   Messages sent recursively
+   Maintains an in-memory dict of node data
+   Shuffles data when nodes join and leave
+   Provides some consistency through vector version numbers
+  """
+
   def __init__(self, ring_id=1, id=None, ip='127.0.0.1', port=8080, user_id=None):
     BufferedUDPListener.__init__(self, ip, port)
     self.set_timeout(0.25)
     self.id = id if id != None else random_key()
-    print 'me: %s' % key_to_int(self.id)
+    sys.stdout.write('me: %s\n' % key_to_int(self.id))
     self.ring_id = ring_id
     self.user_id = user_id
     self.contacts = MultiRingChordContacts(Contact(ring_id=ring_id, id=self.id, ip=self.ip, port=self.port, network_protocol=self))
     self.messages_received = 0
     self.message_limit = None
 
-    # self.data['virtual_key'] = { 'data': value, 'version': vector_clock, 'requires': vector_clock, 'publisher': ? }
+    # self.data['physical_key'] = { 'data': value, 'version': VectorClock(), 'requires': VectorClock() }
     self.data = {}
     self.callback_manager = CallbackManager()
     self.next_finger_to_fix = 1
@@ -74,26 +89,25 @@ class Node(BufferedUDPListener):
       pass
     else:
       self.add_contact(contact)
-    print 'received %s from %s' % (message_to_string(obj), contact)
+    sys.stdout.write('received %s from %s\n' % (message_to_string(obj), contact))
     self.received_msg(contact, obj)
 
   def received_msg(self, contact, obj):
     self.messages_received += 1
     if self.message_limit and (self.messages_received >= self.message_limit):
-      print 'reached message limit'
+      sys.stdout.write('reached message limit\n')
       sys.exit(1)
+    # figure out which function handles this message type
     handler = Node.message_handlers.get(obj.__class__)
     if handler:
+      # invoke handler
       handler(self, contact, obj)
 
   def start(self):
     self.listen_loop()
 
   def add_contact(self, contact):
-    existing = self.contacts.add(contact)
-    #if not existing:
-    #  print 'added new contact %s' % contact
-    #  self.new_connection(contact)
+    self.contacts.add(contact)
   
   def remove_contact(self, contact_id):
     del self.contacts[contact_id]
@@ -134,9 +148,6 @@ class Node(BufferedUDPListener):
         data = critical_data
         )
       )
-  
-    # TODO: fix this so that we only set successor
-    # after data has been pushed to the new node
     self.contacts.set_successor(contact)
 
   @handlesrequest(JoinResponse)
@@ -149,23 +160,23 @@ class Node(BufferedUDPListener):
   def join_response_callback(self, request_id, (contact, obj)):
     self.contacts.set_successor(Contact.from_tuple(obj.successor, self))
     self.contacts.set_predecessor(contact)
-    print 'joined!'
-    print '  predecessor: %s' % key_to_int(self.contacts.get_predecessor().id)
-    print '  me: %s' % key_to_int(self.id)
-    print '  successor: %s' % key_to_int(self.contacts.get_successor().id)
+    sys.stdout.write('joined!\n')
+    sys.stdout.write('  predecessor: %s\n' % key_to_int(self.contacts.get_predecessor().id))
+    sys.stdout.write('  me: %s\n' % key_to_int(self.id))
+    sys.stdout.write('  successor: %s\n' % key_to_int(self.contacts.get_successor().id))
 
 # LEAVE
   def leave(self, callback):
     leave_request_id = self.callback_manager.register(callback)
     previous_key = key_subtract_circular(self.id, int_to_key(1))
-    print color('find(%s)' % key_to_int(previous_key), 'red', bold=True)
+    sys.stdout.write(color('find(%s)\n' % key_to_int(previous_key), 'red', bold=True))
     find_request_id = self.find(previous_key, callback=self.leave_got_predecessor, raw_key=True)
     find_request_data = self.callback_manager.get_data(find_request_id)
     find_request_data['leave_request_id'] = leave_request_id
     return leave_request_id
 
   def leave_got_predecessor(self, find_request_id, contact):
-    print color('predecessor is %s' % contact, 'red', bold=True)
+    sys.stdout.write(color('predecessor is %s\n' % contact, 'red', bold=True))
     find_request_data = self.callback_manager.get_data(find_request_id)
 
     critical_data = {}
@@ -281,7 +292,7 @@ class Node(BufferedUDPListener):
       self.received_msg(requester, message)
     else:
       contact = self.contacts.nearest_contact_less_than(test_key)
-      #print color('nearest contact to %s: %s' % (key_to_int(test_key), contact), 'red', bold=True)
+      #sys.stdout.write(color('nearest contact to %s: %s\n' % (key_to_int(test_key), contact), 'red', bold=True))
       contact.send(
         ForwardMessage(
           key = key,
@@ -414,7 +425,8 @@ class Node(BufferedUDPListener):
     self.callback_manager.call(obj.request_id, (self, contact, obj.version))
 
   
-# put message handlers into a dict
+# discover functions in Node with the handlesrequest decorator
+# store a dict of message_type => handler function
 Node.message_handlers = {}
 for name in dir(Node):
   x = getattr(Node, name)

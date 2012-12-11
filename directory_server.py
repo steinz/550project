@@ -1,6 +1,5 @@
 import sys
-from twisted.internet.protocol import DatagramProtocol
-from twisted.internet import reactor
+from buffered_udp_listener import BufferedUDPListener
 
 def usage(argv):
   print 'usage: %s port' % argv[0]
@@ -8,7 +7,7 @@ def usage(argv):
 
 nodes = set()
 
-class DirectoryServer(DatagramProtocol):
+class DirectoryServer(BufferedUDPListener):
   def datagramReceived(self, data, (host, port)):
     if len(data) < 1:
       return
