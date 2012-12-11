@@ -3,18 +3,31 @@ Ethan Faust
 efaust@cs.washington.edu
 
 === HOW TO RUN ===
-Run either
+1) Select node configuration
+
   make CONFIG=static
     (for nodes with static ids in the key space -- easy debugging)
-or
+
+  or
+
   make CONFIG=dynamic
     (nodes with random ids in the key space -- best load balancing)
 
-This will symlink config.json to a config file to use.
+  This will symlink config.json to a config file to use.
 
 
-To start a node run
-  ./app.py n
+2) Start directory server
 
-where n is a node id defined in config.json
+  ./directory_server.py [port]
+  ./directory_server.py 1234
+
+  Note: node config files reference this port, so if you change it
+  make sure to update config-*.json as well.
+
+
+3) Start node(s)
+  To start a node run
+    ./app.py n
+
+  where n is a node id defined in config.json
 

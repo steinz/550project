@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import inspect
 import json
 import math
 import sys
@@ -12,7 +11,10 @@ from contact import Contact
 from chord_contacts import MultiRingChordContacts
 from callback_manager import CallbackManager
 from vector_version import VectorVersion
-from message_handler_node import define_message_types, handlesrequest, MessageHandlerNode
+from message_handler_node import define_message_types, handlesrequest, MessageHandlerNode, NodeMessage
+
+class DHTNodeMessage(NodeMessage):
+  pass
 
 message_types = [
   'ForwardMessage',
@@ -27,7 +29,7 @@ message_types = [
 define_message_types(
   sys.modules[__name__],
   message_types,
-  lambda name, parent, members:type(name, parent, members)
+  lambda name, parent, members:type(name, (DHTNodeMessage,), members)
   )
 
 def message_to_string(msg):
@@ -66,6 +68,8 @@ class Node(MessageHandlerNode):
     pass
 
   def received_obj(self, ip, port, obj):
+    if not isinstance(obj, DHTNodeMessage):
+      return
     contact = Contact(ring_id=obj.ring_id, id=obj.id, ip=ip, port=port, network_protocol=self)
     if hasattr(obj, 'join') and obj.join:
       # this node is trying to join
@@ -86,9 +90,6 @@ class Node(MessageHandlerNode):
     if handler:
       # invoke handler
       handler(self, contact, obj)
-
-  def start(self):
-    self.listen_loop()
 
   def add_contact(self, contact):
     self.contacts.add(contact)

@@ -30,5 +30,11 @@
       "ring_id": 1,
       "user_id": 104
     }
+  },
+  "directory_servers": {
+    "1": {
+      "ip": "127.0.0.1",
+      "port": 1234
+    }
   }
 }

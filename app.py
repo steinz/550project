@@ -5,7 +5,7 @@ from multiprocessing import Process, Queue
 import sys
 import time
 
-from app_node import P2PSocialStore
+from app_node import AppNode
 from repl import REPL
 import repl_task
 from console_format import *
@@ -32,7 +32,7 @@ def run(argv):
     return 2
 
   node_config = config['nodes'][node_id]
-  node = P2PSocialStore(config, node_id)
+  node = AppNode(config, node_id)
 
   request_queue = Queue()
   network_process = Process(target=node.start, args=(request_queue,))

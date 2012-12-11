@@ -41,13 +41,18 @@ class MessageHandlerNode(BufferedUDPListener):
     BufferedUDPListener.__init__(self, ip, port)
 
   def received_obj(self, ip, port, obj):
+    #sys.stdout.write('received %s\n' % str(obj))
+    #sys.stdout.write('  class: %s\n' % self.__class__.__name__)
     handler = self.__class__.get_message_handler(obj)
+    #sys.stdout.write('  handler: %s\n' % str(handler))
     if handler:
       # invoke handler
       handler(self, ip, port, obj)
 
   @classmethod
   def get_message_handler(cls, msg):
+    #for k, v in cls.message_handlers.iteritems():
+    #  sys.stdout.write('    %s: %s\n' % (str(k), str(v)))
     return cls.message_handlers.get(msg.__class__)
 
   @classmethod
@@ -57,7 +62,8 @@ class MessageHandlerNode(BufferedUDPListener):
      store a dict of message_type => handler function
      to use: discover_message_handlers([subclass of MessageHandlerNode])
     """
-    cls.message_handlers = {}
+    if not hasattr(cls, 'message_handlers'):
+      cls.message_handlers = {}
     for name in dir(cls):
       x = getattr(cls, name)
       if not inspect.ismethod(x) or not hasattr(x, 'message_type'):
