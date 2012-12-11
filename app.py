@@ -8,6 +8,7 @@ import time
 from app_node import AppNode
 from repl import REPL
 import repl_task
+import social_repl_task
 from console_format import *
 
 
@@ -44,6 +45,7 @@ def run(argv):
  
   repl = REPL(prompt='dht>> ', command_queue=request_queue)
   repl.add_commands_from_module(repl_task)
+  repl.add_commands_from_module(social_repl_task)
   repl.loop()
 
   request_queue.put(repl_task.LeaveTask())

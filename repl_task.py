@@ -256,5 +256,20 @@ class MultipleGetTask(QueueTask):
     sys.stdout.write('\nall gets completed.\n')
     sys.stdout.flush()
 
+class DataTask(QueueTask):
+  command = 'data'
 
+  @classmethod
+  def describe(cls):
+    return 'print data stored by the local node'
 
+  @classmethod
+  def help(cls):
+    return 'usage: %s (no arguments)' % cls.command
+
+  def execute(self, node):
+    sys.stdout.write('\n%d keys:\n' % len(node.data))
+    for k, v in node.data.iteritems():
+      sys.stdout.write('  %s: %s\n' % (k, json.dumps(node.value_to_wire(v), indent=2)))
+    sys.stdout.write('---\n')
+    sys.stdout.flush()

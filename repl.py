@@ -59,6 +59,7 @@ class REPL(object):
         all_commands.sort()
         for command_str in all_commands:
           sys.stdout.write('%s: %s\n' % (bold(command_str), self.commands[command_str].describe()))
+        sys.stdout.write('\nyou can also type \'help command\' for more information on that command\n')
       else:
         # help for one command
         sys.stdout.write('%s\n' % bold(subcommand))
@@ -69,7 +70,7 @@ class REPL(object):
       command_obj = self.commands[command](args)
       self.command_queue.put(command_obj, block=False)
     else:
-      sys.stdout.write('unknown command\n')
+      sys.stdout.write('unknown command.\ntype \'help\' for a list of commands\n')
 
   def loop(self):
     while True:

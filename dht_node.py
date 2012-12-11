@@ -365,7 +365,7 @@ class DHTNode(MessageHandlerNode):
       GetResponse(
         request_id = obj.request_id,
         key = obj.key,
-        value = self.value_to_wire(self.data[key])
+        value = (self.value_to_wire(self.data[key]) if key in self.data else None)
         )
       )
 
@@ -379,18 +379,18 @@ class DHTNode(MessageHandlerNode):
 # TODO: PUT, DELETE?
 
   def value_to_wire(self, data):
-    return {
+    return (None if data == None else {
       'data': data['data'],
       'requires': data['requires'].to_tuples(),
       'version': data['version'].to_tuples(),
-    }
+    })
 
   def value_from_wire(self, data):
-    return {
+    return (None if data == None else {
       'data': data['data'],
       'requires': VectorVersion.from_tuples(data['requires']),
       'version': VectorVersion.from_tuples(data['version']),
-    }
+    })
 
 # APPEND(physical key: a string, value: anything)
   def append(self, key, value, callback, requires=None, ring_id=None):
