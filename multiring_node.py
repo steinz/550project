@@ -109,7 +109,7 @@ class MultiRingNode(DHTNode):
       physical_key = '%d_%s' % (i, virtual_key)
       yield physical_key
 
-  def multiple_append(self, key, value, requires, one_completed_callback=None, all_completed_callback=None):
+  def multiple_append(self, key, value, requires=None, one_completed_callback=None, all_completed_callback=None):
     """
      append to all physical keys representing the same virtual key
      call the callback when data is replicated everywhere
@@ -183,7 +183,7 @@ class MultiRingNode(DHTNode):
       self.callback_manager.call(multiple_append_request_id, (self, multiple_append_data))
 
 
-  def multiple_get(self, key, value, one_completed_callback=None, all_completed_callback=None):
+  def multiple_get(self, key, one_completed_callback=None, all_completed_callback=None):
     """
      send get requests to all physical keys representing the same virtual key
      call the callback with data from the one that responds first
@@ -231,7 +231,7 @@ class MultiRingNode(DHTNode):
     del self.multiple_request_map[request_id]
     data = self.callback_manager.get_data(request_id)
     multiple_get_data = self.callback_manager.get_data(multiple_get_request_id)
-    multiple_get_data['keys'][contact.ring_id][data['physical_key']] = (contact, key, value)
+    multiple_get_data['keys'][contact.ring_id][data['physical_key']] = (contact, value)
     
     if multiple_get_data['one_completed_callback'] != None:
       multiple_get_data['one_completed_callback'](

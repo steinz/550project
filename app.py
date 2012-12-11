@@ -16,7 +16,7 @@ def read_config(filename='config.json'):
     with open(filename, 'r') as f:
       return json.loads(f.read())
   except IOError as e:
-    sys.stderr.write('%s\ndid you run\n  make CONFIG=[static|dynamic]\n' % color('failed to read \'%s\'' % e.filename, 'red', bold=True))
+    sys.stderr.write('%s\ndid you run\n  make CONFIG=config-name\n\ndid you read the README?\n' % color('failed to read \'%s\'' % e.filename, 'red', bold=True))
     sys.exit(1)
 
 def run(argv):

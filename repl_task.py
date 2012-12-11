@@ -222,4 +222,39 @@ class MultipleAppendTask(QueueTask):
     sys.stdout.flush()
 
 
+class MultipleGetTask(QueueTask):
+  command = 'multiple_get'
+
+  @classmethod
+  def describe(cls):
+    return 'get from all replicas in this ring and other rings'
+
+  @classmethod
+  def help(cls):
+    return 'usage: %s virtual_key value' % cls.command
+
+  def execute(self, node):
+    key, value = get_first_word(self.args)
+    node.multiple_get(
+      key = key,
+      one_completed_callback=self.one_completed,
+      all_completed_callback=self.all_completed
+      )
+
+  def one_completed(self, multiple_get_request_id,
+        (node, multiple_get_data, contact, physical_key)):
+    value = multiple_get_data['keys'][contact.ring_id][physical_key][1]
+    sys.stdout.write('\nget result:\n')
+    sys.stdout.write('  ring_id: %s\n' % contact.ring_id)
+    sys.stdout.write('  node: %s:%s\n' % (contact.ip, contact.port))
+    sys.stdout.write('  virtual key: %s\n' % multiple_get_data['virtual_key'])
+    sys.stdout.write('  physical key: %s\n' % physical_key)
+    sys.stdout.write('  data: %s\n\n' % json.dumps(node.value_to_wire(value), indent=2))
+    sys.stdout.flush()
+
+  def all_completed(self, multiple_get_request_id, (node, multiple_get_data)):
+    sys.stdout.write('\nall gets completed.\n')
+    sys.stdout.flush()
+
+
 
