@@ -1,3 +1,4 @@
 *.pyc
 *~
 playground
+config.json

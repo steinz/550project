@@ -18,6 +18,7 @@ class MultiRingNode(Node):
      user_id: application-level user identifier used to provide basic consistency
     """
     Node.__init__(
+      self,
       ring_id = ring_id,
       id = id,
       ip = ip,

@@ -10,16 +10,9 @@ from console_format import *
 from keyspace import *
 from contact import Contact
 from chord_contacts import MultiRingChordContacts
-from buffered_udp_listener import BufferedUDPListener
 from callback_manager import CallbackManager
 from vector_version import VectorVersion
-
-# base message
-# store any attributes given to the constructor
-class NodeMessage(object):
-  def __init__(self, **kwargs):
-    for key in kwargs:
-      setattr(self, key, kwargs[key])
+from message_handler_node import define_message_types, handlesrequest, MessageHandlerNode
 
 message_types = [
   'ForwardMessage',
@@ -31,20 +24,11 @@ message_types = [
   'AppendMessage', 'AppendResponse',
   'LeaveGetPredecessorSuccessor', 'LeaveMessage', 'LeaveResponse', 'LeaveUpdateSuccessor'
 ]
-
-# define classes for every item in message_types
-for x in message_types:
-  obj = type(x, (NodeMessage,), {})
-  setattr(sys.modules[__name__], x, obj)
-
-# decorator for functions to define which message type they handle
-# used to dynamically map messages to functions
-def handlesrequest(message_type):
-  def decorator(func):
-    func.message_type = message_type
-    return func
-  return decorator
-
+define_message_types(
+  sys.modules[__name__],
+  message_types,
+  lambda name, parent, members:type(name, parent, members)
+  )
 
 def message_to_string(msg):
   d = msg.__dict__.copy()
@@ -52,7 +36,7 @@ def message_to_string(msg):
     d['id'] = key_to_int(d['id'])
   return '%s: %s' % (msg.__class__.__name__, str(d))
 
-class Node(BufferedUDPListener):
+class Node(MessageHandlerNode):
   """
    Chord node
 
@@ -63,7 +47,7 @@ class Node(BufferedUDPListener):
   """
 
   def __init__(self, ring_id=1, id=None, ip='127.0.0.1', port=8080, user_id=None):
-    BufferedUDPListener.__init__(self, ip, port)
+    MessageHandlerNode.__init__(self, ip, port)
     self.set_timeout(0.25)
     self.id = id if id != None else random_key()
     sys.stdout.write('me: %s\n' % key_to_int(self.id))
@@ -98,7 +82,7 @@ class Node(BufferedUDPListener):
       sys.stdout.write('reached message limit\n')
       sys.exit(1)
     # figure out which function handles this message type
-    handler = Node.message_handlers.get(obj.__class__)
+    handler = Node.get_message_handler(obj)
     if handler:
       # invoke handler
       handler(self, contact, obj)
@@ -202,6 +186,12 @@ class Node(BufferedUDPListener):
 
   @handlesrequest(LeaveMessage)
   def got_leave_message(self, contact, obj):
+    # special case: only one node in the system
+    if contact == self.contacts.me():
+      # don't bother doing anything, just call the callback
+      self.callback_manager.call(obj.request_id, contact)
+      return
+
     for key in obj.data:
       self.data[key] = self.value_from_wire(obj.data[key])
     self.contacts.set_successor(Contact.from_tuple(obj.successor, self))
@@ -424,16 +414,7 @@ class Node(BufferedUDPListener):
   def got_append_response(self, contact, obj):
     self.callback_manager.call(obj.request_id, (self, contact, obj.version))
 
-  
 # discover functions in Node with the handlesrequest decorator
 # store a dict of message_type => handler function
-Node.message_handlers = {}
-for name in dir(Node):
-  x = getattr(Node, name)
-  if not inspect.ismethod(x) or not hasattr(x, 'message_type'):
-    continue
-  message_type = getattr(x, 'message_type')
-  if not issubclass(message_type, NodeMessage):
-    continue
-  Node.message_handlers[message_type] = x
+Node.discover_message_handlers()
 

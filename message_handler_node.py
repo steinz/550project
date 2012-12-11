@@ -1,4 +1,7 @@
 import inspect
+import sys
+
+from buffered_udp_listener import BufferedUDPListener
 
 # base message
 # store any attributes given to the constructor
@@ -7,29 +10,45 @@ class NodeMessage(object):
     for key in kwargs:
       setattr(self, key, kwargs[key])
 
-def define_message_types(module_name, message_types):
+def define_message_types(module, message_types, creator):
   """
    define classes for every item in message_types
-   to use: when calling module_name = __name__
+   to use:
+    define_message_types(
+      sys.modules[__name__],
+      message_types,
+      lambda name, parent, members:type(name, parent, members)
+      )
+    the lambda bit is required from the caller to get the newly created classes
+    to exist in the calling module
   """
   for x in message_types:
-    obj = type(x, (NodeMessage,), {})
-    setattr(sys.modules[module_name], x, obj)
+    obj = creator(x, (NodeMessage,), {})
+    setattr(module, x, obj)
 
 def handlesrequest(message_type):
   """
    decorator for functions to define which message type they handle
    used to dynamically map messages to functions
-  """  
-
+  """
   def decorator(func):
     func.message_type = message_type
     return func
   return decorator
 
 class MessageHandlerNode(BufferedUDPListener):
-  def __init__(self):
-    pass
+  def __init__(self, ip, port):
+    BufferedUDPListener.__init__(self, ip, port)
+
+  def received_obj(self, ip, port, obj):
+    handler = self.__class__.get_message_handler(obj)
+    if handler:
+      # invoke handler
+      handler(self, ip, port, obj)
+
+  @classmethod
+  def get_message_handler(cls, msg):
+    return cls.message_handlers.get(msg.__class__)
 
   @classmethod
   def discover_message_handlers(cls):
