@@ -38,7 +38,7 @@ def message_to_string(msg):
     d['id'] = key_to_int(d['id'])
   return '%s: %s' % (msg.__class__.__name__, str(d))
 
-class Node(MessageHandlerNode):
+class DHTNode(MessageHandlerNode):
   """
    Chord node
 
@@ -86,7 +86,7 @@ class Node(MessageHandlerNode):
       sys.stdout.write('reached message limit\n')
       sys.exit(1)
     # figure out which function handles this message type
-    handler = Node.get_message_handler(obj)
+    handler = DHTNode.get_message_handler(obj)
     if handler:
       # invoke handler
       handler(self, contact, obj)
@@ -417,5 +417,5 @@ class Node(MessageHandlerNode):
 
 # discover functions in Node with the handlesrequest decorator
 # store a dict of message_type => handler function
-Node.discover_message_handlers()
+DHTNode.discover_message_handlers()
 

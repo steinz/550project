@@ -1,4 +1,4 @@
-from node import Node
+from dht_node import DHTNode
 from contact import Contact
 from directory_server_messages import *
 from console_format import *
@@ -6,7 +6,7 @@ from message_handler_node import MessageHandlerNode, handlesrequest
 
 REPLICATION_FACTOR = 3
 
-class MultiRingNode(Node):
+class MultiRingNode(DHTNode):
   """
    A chord node, but also supports cross-ring operations
    (e.g. fast get by looking up multiple physical keys in parallel)
@@ -26,7 +26,7 @@ class MultiRingNode(Node):
      ip, port
      user_id: application-level user identifier used to provide basic consistency
     """
-    Node.__init__(
+    DHTNode.__init__(
       self,
       ring_id = ring_id,
       id = id,
@@ -41,7 +41,7 @@ class MultiRingNode(Node):
     if isinstance(obj, DirectoryServerMessage):
       MessageHandlerNode.received_obj(self, ip, port, obj)
     else:
-      Node.received_obj(self, ip, port, obj)
+      DHTNode.received_obj(self, ip, port, obj)
 
   def send_to_directory_server(self, obj):
     self.send_obj(self.directory_server_ip, self.directory_server_port, obj)  
