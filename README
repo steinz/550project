@@ -15,19 +15,58 @@ efaust@cs.washington.edu
 
   This will symlink config.json to a config file to use.
 
-
 2) Start directory server
-
   ./directory_server.py [port]
   ./directory_server.py 1234
 
   Note: node config files reference this port, so if you change it
   make sure to update config-*.json as well.
 
-
 3) Start node(s)
   To start a node run
     ./app.py n
 
   where n is a node id defined in config.json
+
+
+=== SUGGESTED STARTUP SEQUENCE ===
+1) make CONFIG=2ring-dynamic
+2) Console 0: ./directory_server.py 1234
+3) Console 1: ./app.py 0
+4) Console 2: ./app.py 1
+5) Console 3: ./app.py 3
+6) Console 4: ./app.py 4
+
+7) Console 1: help
+   This will give a listing of commands
+
+
+=== THINGS TO TRY ===
+Leading number corresponds to node number:
+
+0: friend 101
+0: friend 102
+0: defriend 101
+4: friend_list 100
+  node 0 has user_id 100
+  note: node 4 is in a different ring but still sees the data!
+  note: keys with null data are irrelevant
+3: friend_list 100
+0: wall_post 100 101 is not my friend
+1: wall_read 100
+  node 1 has user_id 101
+  notice that received data has a requires tag corresponding to user 100's friends list
+  with 101 removed!
+1: get 0_100_friends
+1: friend_list 100
+
+Examine data for a few nodes (e.g. 3, 4):
+3: data
+4: data
+
+Terminate 3:
+3: exit (or Ctrl+C, or Ctrl+D)
+4: data
+  data from node 3 has been transferred to node 4
+
 

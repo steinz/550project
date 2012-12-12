@@ -7,11 +7,13 @@ hash_algorithm = 'sha1'
 key_size_bytes = hashlib.new(hash_algorithm).digest_size
 
 def random_key():
-  hash = hashlib.new(hash_algorithm)
-  hash.update(str(random.getrandbits(key_size_bytes * 8 * 2)))
-  return hash.digest()
+  return string_to_key(str(random.getrandbits(key_size_bytes * 8 * 2)))
 
 def keyspace_size():
+  """
+   get the keyspace size in bits
+   (number of distinct possible keys)
+  """
   return 2 ** (8 * key_size_bytes)
 
 def keyspace_compare(prev, next, search):
