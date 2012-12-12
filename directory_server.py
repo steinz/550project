@@ -4,6 +4,7 @@ import json
 import sys
 from message_handler_node import define_message_types, handlesrequest, MessageHandlerNode, NodeMessage
 from directory_server_messages import *
+from console_format import color
 import random
 
 LOCALHOST = '127.0.0.1'
@@ -30,13 +31,19 @@ class DirectoryServer(MessageHandlerNode):
   @handlesrequest(DirectoryServerJoin)
   def got_join(self, src_ip, src_port, message):
     ring_set = self.nodes_by_ring.get(message.ring_id) 
+
+    if len(self.nodes_by_ring.get(message.ring_id)) < 1:
+      sys.stdout.write(color('WARNING: a node is trying to join ring %d but there are no existing nodes in that ring. Starting a new ring.\n' % message.ring_id, 'red', bold=True))
+      # joining node becomes the first node in the ring
+      ring_set.add((src_ip, src_port))
+    
     primary_ring_contact = random.sample(ring_set, 1)[0]
     ring_set.add((src_ip, src_port))
     sys.stdout.write('added node %s:%s to ring %d\n' % (src_ip, src_port, message.ring_id))
     #sys.stdout.write('  contact %s:%s\n' % (primary_ring_contact[0], primary_ring_contact[1]))
     other_ring_contacts = []
     for ring_id in self.nodes_by_ring:
-      if ring_id == message.ring_id:
+      if ring_id == message.ring_id or len(self.nodes_by_ring.get(ring_id)) < 1:
         continue
       node = random.sample(self.nodes_by_ring.get(ring_id), 1)[0]
       other_ring_contacts.append((ring_id, node[0], node[1]))
@@ -55,6 +62,8 @@ class DirectoryServer(MessageHandlerNode):
     if (src_ip, src_port) in ring_set:
       sys.stdout.write('removed node %s:%s from ring %d\n' % (src_ip, src_port, message.ring_id))
       ring_set.remove((src_ip, src_port))
+      if len(self.nodes_by_ring[message.ring_id]) == 0:
+        sys.stdout.write(color('WARNING: no more nodes in ring %d\n' % message.ring_id, 'red', bold=True))
 
   @handlesrequest(DirectoryServerGetRingContact)
   def got_get_ring_contact(self, src_ip, src_port, message):

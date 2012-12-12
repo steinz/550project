@@ -49,7 +49,7 @@ class REPL(object):
     command, args = get_first_word(input_line)
     
     if command == '':
-      return
+      pass
     elif command == 'help':
       subcommand, args = get_first_word(args)
 
@@ -69,8 +69,11 @@ class REPL(object):
     elif command in self.commands:
       command_obj = self.commands[command](args)
       self.command_queue.put(command_obj, block=False)
+      if command_obj.terminal:
+        return True
     else:
       sys.stdout.write('unknown command.\ntype \'help\' for a list of commands\n')
+    return False
 
   def loop(self):
     while True:
@@ -79,11 +82,12 @@ class REPL(object):
         input_line = raw_input()
         if input_line == 'exit':
           break
-        self.process_command(input_line)
+        should_stop = self.process_command(input_line)
+        if should_stop:
+          break
       except KeyboardInterrupt as e:
         sys.stdout.write('\n')
         break
       except EOFError as e:
         sys.stdout.write('\n')
         break
-    sys.stdout.write('bye\n')

@@ -3,6 +3,9 @@ class VectorVersion(object):
   def __init__(self):
     self.elements = {}    
 
+  def copy(self):
+    return VectorVersion.from_tuples(self.to_tuples())
+
   def merge(self, other):
     def merge_element(slave, master):
       if master and not slave:
@@ -13,7 +16,7 @@ class VectorVersion(object):
       raise TypeError('other must be a VectorVersion instance')
     
     for k, v in other.elements.iteritems():
-      self.elements[k] = merge(self.elements.get(k), v)
+      self.elements[k] = merge_element(self.elements.get(k), v)
 
   def increment(self, user_id):
     if user_id not in self.elements:

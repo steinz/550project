@@ -27,7 +27,8 @@ class AppNode(MultiRingNode):
       user_id = self.node_config['user_id'],
       directory_server_ip = config['directory_servers'][str(ring_id)]['ip'],
       directory_server_port = config['directory_servers'][str(ring_id)]['port']
-      )    
+      )
+    self.stop_on_interrupt = False
 
   def start(self, request_queue):
     self.request_queue = request_queue

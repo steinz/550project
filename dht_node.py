@@ -11,6 +11,7 @@ from contact import Contact
 from chord_contacts import MultiRingChordContacts
 from callback_manager import CallbackManager
 from vector_version import VectorVersion
+from vector_version_list import VectorVersionList
 from message_handler_node import define_message_types, handlesrequest, MessageHandlerNode, NodeMessage
 
 class DHTNodeMessage(NodeMessage):
@@ -59,7 +60,11 @@ class DHTNode(MessageHandlerNode):
     self.messages_received = 0
     self.message_limit = None
 
-    # self.data['physical_key'] = { 'data': value, 'version': VectorClock(), 'requires': VectorClock() }
+    # self.data[string_to_key('physical_key')] = {
+    #   'data': value,
+    #   'version': VectorVersion(),
+    #   'requires': VectorVersionList()
+    #   }
     self.data = {}
     self.callback_manager = CallbackManager()
     self.next_finger_to_fix = 1
@@ -388,7 +393,7 @@ class DHTNode(MessageHandlerNode):
   def value_from_wire(self, data):
     return (None if data == None else {
       'data': data['data'],
-      'requires': VectorVersion.from_tuples(data['requires']),
+      'requires': VectorVersionList.from_tuples(data['requires']),
       'version': VectorVersion.from_tuples(data['version']),
     })
 
@@ -414,11 +419,11 @@ class DHTNode(MessageHandlerNode):
     if key not in self.data:
       self.data[key] = {
         'data': [],
-        'requires': VectorVersion(),
+        'requires': VectorVersionList(),
         'version': VectorVersion(),
       }
     self.data[key]['data'].append(obj.value)
-    self.data[key]['requires'].merge(VectorVersion.from_tuples(obj.requires))
+    self.data[key]['requires'].merge(VectorVersionList.from_tuples(obj.requires))
     self.data[key]['version'].increment(obj.user_id)
 
     contact.send(

@@ -4,7 +4,7 @@ DEFAULT_DATA_SIZE=10000
 DEFAULT_TIMEOUT=2.0
 
 class UDPListener(object):
-  def __init__(self, ip, port):
+  def __init__(self, ip, port, stop_on_interrupt=True):
     self.ip = ip
     self.port = port
     self.socket = socket.socket(socket.AF_INET,    # Internet socket
@@ -12,6 +12,7 @@ class UDPListener(object):
     self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     self.socket.bind((ip, port))
     self.set_timeout()
+    self.stop_on_interrupt = stop_on_interrupt
 
   def __del__(self):
     self.stop_listening()
@@ -51,6 +52,6 @@ class UDPListener(object):
       except socket.timeout:
         self.timed_out()
       except KeyboardInterrupt as e:
-        print        
-        print 'bye'
-        break
+        if self.stop_on_interrupt:
+          break
+

@@ -79,6 +79,12 @@ class AppendTask(QueueTask):
 class LeaveTask(QueueTask):
   command = 'leave'
   
+  def __init__(self, args=''):
+    QueueTask.__init__(self, args)
+
+    # stop REPL after executing
+    self.terminal = True
+
   @classmethod
   def describe(cls):
     return 'leave the DHT, transfer data to other nodes'

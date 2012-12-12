@@ -50,7 +50,7 @@ def run(argv):
 
   request_queue.put(repl_task.LeaveTask())
   network_process.join()
-
+  sys.stdout.write('bye\n')
   return 0
 
 if __name__ == '__main__':

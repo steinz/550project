@@ -2,6 +2,8 @@ import json
 import sys
 
 from repl import QueueTask, get_first_word
+from vector_version import VectorVersion
+from vector_version_list import VectorVersionList
 
 class ReadWallTask(QueueTask):
   command = 'wall_read'
@@ -44,15 +46,32 @@ class PostToWallTask(QueueTask):
     return 'usage: %s user_id contents' % cls.command
 
   def execute(self, node):
-    other_user_id, value = get_first_word(self.args)
-    node.multiple_append(
-      key = '%s_wall' % other_user_id,
-      value = value,
-      requires = None,
-      all_completed_callback=self.all_completed
+    self.other_user_id, self.value = get_first_word(self.args)
+    node.multiple_get(
+      key = '%s_friends' % self.other_user_id,
+      all_completed_callback=self.got_friends_file,
       )
 
-  def all_completed(self, multiple_append_request_id, (node, multiple_append_data)):
+  def got_friends_file(self, multiple_append_request_id, (node, multiple_append_data)):
+    max_version = VectorVersion()
+    for ring_id in multiple_append_data['keys']:
+      for physical_key in multiple_append_data['keys'][ring_id]:
+        (contact, value) = multiple_append_data['keys'][ring_id][physical_key]
+        if value != None:
+          max_version.merge(value['version'])
+    self.do_post(node, max_version)
+
+  def do_post(self, node, max_friend_file_version):
+    requires = VectorVersionList()
+    requires.add('%s_friends' % self.other_user_id, max_friend_file_version)
+    node.multiple_append(
+      key = '%s_wall' % self.other_user_id,
+      value = self.value,
+      requires = requires,
+      all_completed_callback=self.all_posts_completed
+      )
+
+  def all_posts_completed(self, multiple_append_request_id, (node, multiple_append_data)):
     sys.stdout.write('\nwall post appends completed.\n')
     sys.stdout.flush()
 
