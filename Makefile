@@ -1,5 +1,5 @@
 
-CONFIG:=static
+CONFIG:=2ring-dynamic
 
 all:
 	@rm -f config.json
@@ -7,3 +7,6 @@ all:
 
 clean:
 	@rm -rf *.pyc *~ config.json
+
+lines:
+	wc -l *.py | grep total

@@ -60,16 +60,17 @@ class REPL(object):
         for command_str in all_commands:
           sys.stdout.write('%s: %s\n' % (bold(command_str), self.commands[command_str].describe()))
         sys.stdout.write('\nyou can also type \'help command\' for more information on that command\n')
-      else:
+      elif subcommand in self.commands:
         # help for one command
         sys.stdout.write('%s\n' % bold(subcommand))
         sys.stdout.write('%s\n' % self.commands[subcommand].describe())
         sys.stdout.write('%s\n' % self.commands[subcommand].help())
-
+      else:
+        sys.stdout.write('unknown command.\ntype \'help\' for a list of commands\n')
     elif command in self.commands:
       command_obj = self.commands[command](args)
       self.command_queue.put(command_obj, block=False)
-      if command_obj.terminal:
+      if hasattr(command_obj, 'terminal') and command_obj.terminal:
         return True
     else:
       sys.stdout.write('unknown command.\ntype \'help\' for a list of commands\n')

@@ -159,14 +159,14 @@ class DHTNode(MessageHandlerNode):
   def leave(self, callback):
     leave_request_id = self.callback_manager.register(callback)
     previous_key = key_subtract_circular(self.id, int_to_key(1))
-    sys.stdout.write(color('find(%s)\n' % key_to_int(previous_key), 'red', bold=True))
+    #sys.stdout.write(color('find(%s)\n' % key_to_int(previous_key), 'red', bold=True))
     find_request_id = self.find(previous_key, callback=self.leave_got_predecessor, raw_key=True)
     find_request_data = self.callback_manager.get_data(find_request_id)
     find_request_data['leave_request_id'] = leave_request_id
     return leave_request_id
 
   def leave_got_predecessor(self, find_request_id, contact):
-    sys.stdout.write(color('predecessor is %s\n' % contact, 'red', bold=True))
+    sys.stdout.write('leave: predecessor is %s\n' % contact)
     find_request_data = self.callback_manager.get_data(find_request_id)
 
     critical_data = {}
