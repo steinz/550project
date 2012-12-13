@@ -64,9 +64,10 @@ def latency(nodes, regions, local_latency, foreign_latency):
 
   nodes_per_region = nodes / regions
   print '%u nodes/region' % nodes_per_region
+  print '%.2f%% of total data on each node' % (100.0 / nodes_per_region)
   
   messages_per_request = math.log(nodes_per_region, 2)
-  print '~%u messages_per_request' % messages_per_request
+  print '~%u messages_per_request' % round(messages_per_request)
 
   local_request_latency = messages_per_request * local_latency
   print 'local_request_latency: %u' % local_request_latency
@@ -76,24 +77,32 @@ def latency(nodes, regions, local_latency, foreign_latency):
 
 def compare_latencies():  
   avg_1000 = avg_latency(1000)
+  avg_500 = avg_latency(500)
   avg_250 = avg_latency(250)
   avg_100 = avg_latency(100)
+  avg_50 = avg_latency(50)
 
   print
   print 'avg_latency(1000): %u' % avg_1000
+  print 'avg_latency(500): %u' % avg_500
   print 'avg_latency(250): %u' % avg_250
   print 'avg_latency(100): %u' % avg_100
+  print 'avg_latency(50): %u' % avg_50
 
   print
   latency(1000, 1, avg_1000, avg_1000)
 
   print
-  latency(250, 4, avg_250, avg_1000)
+  latency(1000, 2, avg_500, avg_1000)
 
   print
-  latency(100, 10, avg_100, avg_1000)
+  latency(1000, 4, avg_250, avg_1000)
 
   print
+  latency(1000, 10, avg_100, avg_1000)
+
+  print
+  latency(1000, 20, avg_50, avg_1000)
 
 
 
